@@ -15,6 +15,7 @@ export interface Book {
 	status: "read" | "unread";
 	read_on: string | null;
 	rating?: number;
+	suggestedBy?: string;
 }
 
 export interface Session {

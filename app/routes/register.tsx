@@ -1,6 +1,14 @@
 import { useState } from "react";
 import { useAuth } from "../lib/auth";
 import { useNavigate, Link } from "react-router";
+import type { Route } from "./+types/bookclub";
+
+export function meta({}: Route.MetaArgs) {
+	return [
+		{ title: "register" },
+		{ name: "description", content: "also pretty straightforward" },
+	];
+}
 
 export default function Register() {
 	const { register } = useAuth();
@@ -38,7 +46,7 @@ export default function Register() {
 							Register
 						</h1>
 						<p className="text-neutral-300 font-light text-sm lowercase">
-							Also pretty straight forward
+							Also pretty straightforward
 						</p>
 					</div>
 

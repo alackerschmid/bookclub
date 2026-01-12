@@ -4,7 +4,14 @@ import { BookCard } from "../components/BookCard";
 import { SuggestBookModal } from "../components/SuggestBookModal";
 import { useAuth } from "../lib/auth";
 import type { Book } from "../lib/types";
+import type { Route } from "./+types/bookclub";
 
+export function meta({}: Route.MetaArgs) {
+    return [
+        { title: "book club" },
+        { name: "description", content: "what we do in our spare time" },
+    ];
+}
 interface LoaderData {
 	readBooks: Book[];
 	futureBooks: Book[];
@@ -50,7 +57,7 @@ export default function BookClub() {
 						Book Club
 					</h1>
 					<p className="mt-4 text-neutral-600 dark:text-neutral-400 font-light text-lg tracking-wide lowercase">
-						What we read in our spare time.
+						What we do in our spare time.
 					</p>
 					<button
 						onClick={handleSuggestClick}

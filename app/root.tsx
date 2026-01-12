@@ -12,6 +12,7 @@ import "./app.css";
 import { ThemeProvider } from "./lib/theme";
 import { AuthProvider } from "./lib/auth";
 import { Header } from "./components/Header";
+import { Footer } from "./components/Footer";
 
 export const links: Route.LinksFunction = () => [
 	{ rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -50,6 +51,7 @@ export default function App() {
 			<AuthProvider>
 				<Header />
 				<Outlet />
+				<Footer />
 			</AuthProvider>
 		</ThemeProvider>
 	);

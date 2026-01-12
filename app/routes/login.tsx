@@ -1,10 +1,14 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router";
 import { useAuth } from "../lib/auth";
-import FormInput from "../components/FormInput";
-import ErrorMessage from "../components/ErrorMessage";
-import AuthButton from "../components/AuthButton";
+import type { Route } from "./+types/bookclub";
 
+export function meta({}: Route.MetaArgs) {
+    return [
+        { title: "login" },
+        { name: "description", content: "what it says on the tin" },
+    ];
+}
 export default function Login() {
 	const [username, setUsername] = useState("");
 	const [password, setPassword] = useState("");
