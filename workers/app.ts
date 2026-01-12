@@ -445,6 +445,55 @@ app.get("/api/availability/:bookId", async (c) => {
 	}
 });
 
+app.get("/api/availability/:bookId/details", async (c) => {
+	try {
+		const bookId = c.req.param("bookId");
+
+		// Get all meeting dates for this book with users who voted
+		const { results } = await c.env.bookclub_db
+			.prepare(`
+				SELECT 
+					md.proposed_date,
+					u.id as user_id,
+					u.username
+				FROM meeting_dates md
+				LEFT JOIN meeting_votes mv ON md.id = mv.meeting_date_id
+				LEFT JOIN users u ON mv.user_id = u.id
+				WHERE md.book_id = ?
+				ORDER BY md.proposed_date, u.username
+			`)
+			.bind(bookId)
+			.all();
+
+		// Group users by date
+		const dateMap = new Map<string, Array<{ id: number; username: string }>>();
+		
+		for (const row of results as any[]) {
+			if (!dateMap.has(row.proposed_date)) {
+				dateMap.set(row.proposed_date, []);
+			}
+			// Only add user if they exist (not null from LEFT JOIN)
+			if (row.user_id && row.username) {
+				dateMap.get(row.proposed_date)!.push({
+					id: row.user_id,
+					username: row.username
+				});
+			}
+		}
+
+		// Convert map to array format
+		const dates = Array.from(dateMap.entries()).map(([proposed_date, users]) => ({
+			proposed_date,
+			users
+		}));
+
+		return c.json({ dates });
+	} catch (error) {
+		console.error("Fetch availability details error:", error);
+		return c.json({ error: "Failed to fetch availability details" }, 500);
+	}
+});
+
 app.get("/api/availability/:bookId/user/:userId", async (c) => {
 	try {
 		const bookId = c.req.param("bookId");

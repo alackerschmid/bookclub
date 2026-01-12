@@ -49,9 +49,11 @@ export default function App() {
 	return (
 		<ThemeProvider>
 			<AuthProvider>
-				<Header />
-				<Outlet />
-				<Footer />
+				<div className="min-h-screen flex flex-col">
+					<Header />
+					<Outlet />
+					<Footer />
+				</div>
 			</AuthProvider>
 		</ThemeProvider>
 	);

@@ -33,7 +33,7 @@ export default function Login() {
 	};
 
 	return (
-		<div className="min-h-screen bg-black flex items-center justify-center px-6">
+		<div className="flex-1 bg-black flex items-center justify-center px-6 py-8">
 			<div className="w-full max-w-md border-4 border-white p-8">
 				{/* Orange geometric accent square */}
 				<div className="w-4 h-4 bg-bookclub-orange mb-6" />

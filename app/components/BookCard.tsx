@@ -57,7 +57,9 @@ export function BookCard({
 	const [hasUserRated, setHasUserRated] = useState(false);
 	const [showAvailability, setShowAvailability] = useState(false);
 	const [selectedDays, setSelectedDays] = useState<Set<number>>(new Set());
+	const [initialSelectedDays, setInitialSelectedDays] = useState<Set<number>>(new Set());
 	const [availabilityCounts, setAvailabilityCounts] = useState<{ [day: number]: number }>({});
+	const [availabilityUsers, setAvailabilityUsers] = useState<{ [day: number]: string[] }>({});
 	const [isSubmitting, setIsSubmitting] = useState(false);
 
 	// Fetch user's existing rating on mount
@@ -82,25 +84,27 @@ export function BookCard({
 	useEffect(() => {
 		if (!isPreviouslyRead && date && date !== "TBD") {
 			const [year, month] = date.split("-");
-			const firstDayOfMonth = new Date(parseInt(year), parseInt(month) - 1, 1);
 
-			// Fetch all votes for this book
-			fetch(`/api/availability/${bookId}`)
+			// Fetch all votes for this book with user details
+			fetch(`/api/availability/${bookId}/details`)
 				.then(res => {
 					if (!res.ok) throw new Error("Failed to fetch availability");
-					return res.json() as Promise<{ dates: Array<{ proposed_date: string; vote_count: number }> }>;
+					return res.json() as Promise<{ dates: Array<{ proposed_date: string; users: Array<{ id: number; username: string }> }> }>;
 				})
-				.then((data: { dates: Array<{ proposed_date: string; vote_count: number }> }) => {
+				.then((data: { dates: Array<{ proposed_date: string; users: Array<{ id: number; username: string }> }> }) => {
 					const counts: { [day: number]: number } = {};
+					const users: { [day: number]: string[] } = {};
 					data.dates.forEach((d: any) => {
 						const dateObj = new Date(d.proposed_date);
 						// Extract day of month from the date
 						if (dateObj.getFullYear() === parseInt(year) && dateObj.getMonth() === parseInt(month) - 1) {
 							const dayOfMonth = dateObj.getDate();
-							counts[dayOfMonth] = d.vote_count;
+							counts[dayOfMonth] = d.users.length;
+							users[dayOfMonth] = d.users.map((u: any) => u.username);
 						}
 					});
 					setAvailabilityCounts(counts);
+					setAvailabilityUsers(users);
 				})
 				.catch(err => console.error("Failed to fetch availability:", err));
 
@@ -121,8 +125,7 @@ export function BookCard({
 								selected.add(dayOfMonth);
 							}
 						});
-						setSelectedDays(selected);
-					})
+						setSelectedDays(selected);					setInitialSelectedDays(new Set(selected));					})
 					.catch(err => console.error("Failed to fetch user availability:", err));
 			}
 		}
@@ -185,9 +188,10 @@ export function BookCard({
 		try {
 			const [year, month] = date.split("-");
 			const selectedDates = Array.from(selectedDays).map(day => {
-				// Create date for the specific day in the selected month
-				const d = new Date(parseInt(year), parseInt(month) - 1, day);
-				return d.toISOString().split('T')[0];
+				// Create date string in YYYY-MM-DD format without timezone conversion
+				const paddedMonth = month.padStart(2, '0');
+				const paddedDay = String(day).padStart(2, '0');
+				return `${year}-${paddedMonth}-${paddedDay}`;
 			});
 
 			const response = await fetch("/api/availability", {
@@ -219,10 +223,22 @@ export function BookCard({
 
 	const getDayCount = (day: number) => {
 		const userSelected = selectedDays.has(day);
-		const othersCount = availabilityCounts[day] || 0;
-		// Add user's selection to total count for display
-		const totalCount = userSelected ? othersCount + 1 : othersCount;
-		return { userSelected, othersCount, totalCount };
+		const wasInitiallySelected = initialSelectedDays.has(day);
+		const dbCount = availabilityCounts[day] || 0;
+		
+		// Adjust count based on user's vote changes
+		// DB count already includes user's vote if they voted
+		let totalCount = dbCount;
+		if (!wasInitiallySelected && userSelected) {
+			// User is adding a new vote
+			totalCount = dbCount + 1;
+		} else if (wasInitiallySelected && !userSelected) {
+			// User is removing their vote
+			totalCount = Math.max(0, dbCount - 1);
+		}
+		// If wasInitiallySelected && userSelected: no change, use dbCount as-is
+		
+		return { userSelected, othersCount: dbCount, totalCount };
 	};
 
 	// Find the max vote count for highlighting
@@ -251,7 +267,7 @@ export function BookCard({
 			<div className="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-transparent" />
 			
 			{/* Content with semi-transparent background */}
-			<div className="relative z-10 space-y-3 p-6">
+			<div className="relative z-10 space-y-4 p-6">
 				{/* Title bar */}
 				<div className="bg-white p-4">
 					<h3 className="font-bold text-2xl tracking-tight text-black">
@@ -269,9 +285,9 @@ export function BookCard({
 
 				{/* Description bar */}
 				<div className="bg-black/80 p-4 border-2 border-white/30">
-					<p className="text-neutral-200 text-sm leading-relaxed">
+					<p className="text-neutral-300 text-sm leading-relaxed">
 						{description && description.length > 300 
-							? description.slice(0, 300) + "..." 
+							? description.slice(0, 300) + '...' 
 							: description}
 					</p>
 				</div>
@@ -357,7 +373,7 @@ export function BookCard({
 										<button
 											onClick={handleSubmitRating}
 										disabled={isSubmitting}
-								className="flex-1 py-2 bg-bookclub-yellow hover:bg-[#E5B800] disabled:bg-neutral-400 disabled:cursor-not-allowed text-black text-xs font-bold tracking-wider lowercase transition-colors"
+								className="flex-1 py-2 bg-white hover:bg-[#E5B800] disabled:bg-neutral-400 disabled:cursor-not-allowed text-black text-xs font-bold tracking-wider lowercase transition-colors"
 									>
 										{isSubmitting ? "Submitting..." : "Submit"}
 										</button>
@@ -376,10 +392,10 @@ export function BookCard({
 							{!showAvailability ? (
 								<div className="space-y-3">
 									<div className="flex items-center gap-3">
-										<span className="text-xs font-medium tracking-wider lowercase text-white">
+										<span className="text-sm tracking-wider lowercase text-white">
 											Scheduled
 										</span>
-										<span className="text-base font-bold text-bookclub-blue lowercase">
+										<span className="text-sm font-bold text-bookclub-blue lowercase">
 											{formatMonthYear(date)}
 										</span>
 									</div>
@@ -396,7 +412,7 @@ export function BookCard({
 							) : (
 								<div className="space-y-3 bg-black/95 -m-4 p-4">
 									<div className="text-xs font-medium tracking-wider lowercase text-white text-center mb-2">
-										Select Your Available Days
+										Select Your Available Days in {formatMonthYear(date)}
 									</div>
 									
 									{/* Calendar Grid */}
@@ -428,11 +444,13 @@ export function BookCard({
 												const { userSelected, totalCount } = getDayCount(day);
 												const maxCount = getMaxVoteCount();
 												const isMaxVoted = totalCount > 0 && totalCount === maxCount;
+												const voters = availabilityUsers[day] || [];
 												
 												cells.push(
 													<button
 														key={day}
 														onClick={() => toggleDay(day)}
+														title={voters.length > 0 ? 'works for: ' + voters.join(', ') : ''}
 														className={`aspect-square text-xs relative transition-colors ${
 															userSelected
 																? 'bg-bookclub-blue hover:bg-[#1D4ED8]'
@@ -464,7 +482,7 @@ export function BookCard({
 									<div className="flex gap-2 pt-2">
 										<button
 											onClick={handleSubmitAvailability}
-											className="flex-1 py-2 bg-bookclub-yellow hover:bg-[#E5B800] text-black text-xs font-bold tracking-wider lowercase transition-colors"
+											className="flex-1 py-2 bg-white hover:bg-[#E5B800] text-black text-xs font-bold tracking-wider lowercase transition-colors"
 										>
 											Submit
 										</button>

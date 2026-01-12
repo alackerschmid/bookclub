@@ -23,7 +23,7 @@ async function apiRequest<T>(url: string, options: ApiOptions = {}): Promise<T> 
 	const response = await fetch(url, config);
 
 	if (!response.ok) {
-		const error = await response.json().catch(() => ({ error: "Request failed" }));
+		const error = await response.json().catch(() => ({ error: "Request failed" })) as { error?: string };
 		throw new Error(error.error || `HTTP ${response.status}`);
 	}
 

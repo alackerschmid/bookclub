@@ -52,7 +52,7 @@ export function Header() {
 						{/* Theme Toggle */}
 						<button
 							onClick={toggleTheme}
-							className="w-10 h-10 flex items-center justify-center bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors flex-shrink-0"
+							className="w-10 h-10 flex items-center justify-center bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors shrink-0"
 							aria-label="Toggle theme"
 						>
 							{theme === "light" ? (
