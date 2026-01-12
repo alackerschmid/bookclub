@@ -5,12 +5,12 @@
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"d1_databases": [
-		{
-			"binding": "bookclub_db_binding",
-			"database_name": "bookclub-db-local",
-			"database_id": "24c68440-af5a-45d6-92c9-e35b5a930b27",
-			"preview_database_id": "24c68440-af5a-45d6-92c9-e35b5a930b27"
-		},
+		// {
+		// 	"binding": "bookclub_db_binding",
+		// 	"database_name": "bookclub-db-local",
+		// 	"database_id": "24c68440-af5a-45d6-92c9-e35b5a930b27",
+		// 	"preview_database_id": "24c68440-af5a-45d6-92c9-e35b5a930b27"
+		// },
 		{
 			"binding": "bookclub_db",
 			"database_name": "bookclub-db",
