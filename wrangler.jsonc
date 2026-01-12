@@ -10,15 +10,20 @@
 			"database_name": "bookclub-db-local",
 			"database_id": "24c68440-af5a-45d6-92c9-e35b5a930b27",
 			"preview_database_id": "24c68440-af5a-45d6-92c9-e35b5a930b27"
+		},
+		{
+			"binding": "bookclub_db",
+			"database_name": "bookclub-db",
+			"database_id": "78a468b7-9403-478c-8249-88bac2709845"
 		}
 	],
 	"env": {
 		"production": {
 			"d1_databases": [
 				{
-					"binding": "bookclub_db_binding",
+					"binding": "bookclub_db",
 					"database_name": "bookclub-db",
-					"database_id": "780ac24b-fbab-40b2-b498-cc43deed3d43"
+					"database_id": "78a468b7-9403-478c-8249-88bac2709845"
 				}
 			]
 		}

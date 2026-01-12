@@ -1,7 +1,8 @@
-@import "tailwindcss" source(".");
+@import "tailwindcss";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* @theme is a Tailwind CSS v4 at-rule */
 @theme {
   --font-sans:
     "Space Grotesk", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji",

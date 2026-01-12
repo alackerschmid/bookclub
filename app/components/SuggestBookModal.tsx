@@ -70,7 +70,7 @@ export function SuggestBookModal({ isOpen, onClose, onSuccess }: SuggestBookModa
 			fetch("/api/users")
 				.then(res => {
 					if (!res.ok) throw new Error("Failed to fetch users");
-					return res.json();
+					return res.json() as Promise<{ users: User[] }>;
 				})
 				.then((data: { users: User[] }) => {
 					setUsers(data.users);
@@ -111,17 +111,19 @@ export function SuggestBookModal({ isOpen, onClose, onSuccess }: SuggestBookModa
 
 				const data: OpenLibraryResponse = await response.json();
 				
-			const mappedResults: BookResult[] = data.docs.map((book) => {
-				return {
-					title: book.title,
-					author: book.author_name?.[0],
-					coverUrl: book.cover_i 
-						? `https://covers.openlibrary.org/b/id/${book.cover_i}-M.jpg`
-						: null,
-					year: book.first_publish_year,
-					workKey: book.key,
-				};
-			});
+			const mappedResults: BookResult[] = data.docs
+				.filter((book) => book.key !== undefined)
+				.map((book) => {
+					return {
+						title: book.title,
+						author: book.author_name?.[0],
+						coverUrl: book.cover_i 
+							? `https://covers.openlibrary.org/b/id/${book.cover_i}-M.jpg`
+							: null,
+						year: book.first_publish_year,
+						workKey: book.key!,
+					};
+				});
 
 				setResults(mappedResults);
 			} catch (error) {
