@@ -1,16 +1,23 @@
 @import "tailwindcss" source(".");
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
-	--font-sans:
-		"Inter", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji",
-		"Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-sans:
+    "Space Grotesk", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji",
+    "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --color-bookclub-orange: #ff6600;
+  --color-bookclub-blue: #007ab6;
+  --color-bookclub-yellow: #ffce1c;
+  --color-bookclub-red: #e8594f;
 }
 
-html,
-body {
-	@apply bg-white dark:bg-gray-950;
+@layer base {
+  html {
+    @apply bg-white dark:bg-black;
+  }
 
-	@media (prefers-color-scheme: dark) {
-		color-scheme: dark;
-	}
+  body {
+    @apply bg-white dark:bg-black;
+  }
 }
