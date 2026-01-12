@@ -66,7 +66,7 @@ export function BookCard({
 			fetch(`/api/ratings/${user.id}/${bookId}`)
 				.then(res => {
 					if (!res.ok) throw new Error("Failed to fetch rating");
-					return res.json();
+					return res.json() as Promise<{ rating: number | null }>;
 				})
 				.then((data: { rating: number | null }) => {
 					if (data.rating !== null) {
@@ -88,7 +88,7 @@ export function BookCard({
 			fetch(`/api/availability/${bookId}`)
 				.then(res => {
 					if (!res.ok) throw new Error("Failed to fetch availability");
-					return res.json();
+					return res.json() as Promise<{ dates: Array<{ proposed_date: string; vote_count: number }> }>;
 				})
 				.then((data: { dates: Array<{ proposed_date: string; vote_count: number }> }) => {
 					const counts: { [day: number]: number } = {};
@@ -109,7 +109,7 @@ export function BookCard({
 				fetch(`/api/availability/${bookId}/user/${user.id}`)
 					.then(res => {
 						if (!res.ok) throw new Error("Failed to fetch user availability");
-						return res.json();
+						return res.json() as Promise<{ dates: string[] }>;
 					})
 					.then((data: { dates: string[] }) => {
 						const selected = new Set<number>();
@@ -401,8 +401,8 @@ export function BookCard({
 									
 									{/* Calendar Grid */}
 									<div className="grid grid-cols-7 gap-1">
-										{/* Day labels (Sunday-Saturday) */}
-										{['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, i) => (
+										{/* Day labels (Monday-Sunday) */}
+										{['M', 'D', 'M', 'D', 'F', 'S', 'S'].map((day, i) => (
 											<div key={i} className="text-center text-[10px] font-medium text-white pb-1">
 												{day}
 											</div>
@@ -411,7 +411,9 @@ export function BookCard({
 										{/* Days with proper week alignment */}
 										{(() => {
 											const daysInMonth = getDaysInMonth(date);
-											const firstDay = getFirstDayOfMonth(date);
+											const firstDayOfWeek = getFirstDayOfMonth(date);
+											// Convert Sunday-based (0-6) to Monday-based (0-6) where Monday = 0
+											const firstDay = (firstDayOfWeek + 6) % 7;
 											const cells = [];
 											
 											// Add empty cells for days before the first of the month

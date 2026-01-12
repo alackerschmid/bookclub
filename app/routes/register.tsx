@@ -35,10 +35,10 @@ export default function Register() {
 					{/* Header */}
 					<div className="space-y-3">
 						<h1 className="font-bold text-5xl tracking-tight text-white lowercase">
-							Create account
+							Register
 						</h1>
 						<p className="text-neutral-300 font-light text-sm lowercase">
-							Komm in die gruppe
+							Also pretty straight forward
 						</p>
 					</div>
 
