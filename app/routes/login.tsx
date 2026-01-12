@@ -41,7 +41,7 @@ export default function Login() {
 							Sign in
 						</h1>
 						<p className="text-neutral-300 font-light text-sm lowercase">
-							Enter your credentials to continue
+							What it says on the tin
 						</p>
 					</div>
 

@@ -38,7 +38,7 @@ export default function Register() {
 							Create account
 						</h1>
 						<p className="text-neutral-300 font-light text-sm lowercase">
-							Join the book club community
+							Komm in die gruppe
 						</p>
 					</div>
 

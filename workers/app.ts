@@ -4,7 +4,7 @@ import { cors } from "hono/cors";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 
 type Bindings = {
-	bookclub_db_binding: D1Database;
+	bookclub_db: D1Database;
 };
 
 interface User {
@@ -103,7 +103,7 @@ async function createSession(c: any, userId: number): Promise<string> {
 	const expiresAt = new Date();
 	expiresAt.setDate(expiresAt.getDate() + 30); // 30 days
 
-	await c.env.bookclub_db_binding
+	await c.env.bookclub_db
 		.prepare("INSERT INTO sessions (user_id, session_token, expires_at) VALUES (?, ?, ?)")
 		.bind(userId, sessionToken, expiresAt.toISOString())
 		.run();
@@ -160,7 +160,7 @@ app.post("/api/auth/register", async (c) => {
 		}
 
 		// Check if username already exists
-		const existingUser = await c.env.bookclub_db_binding
+		const existingUser = await c.env.bookclub_db
 			.prepare("SELECT id FROM users WHERE username = ?")
 			.bind(username)
 			.first();
@@ -173,7 +173,7 @@ app.post("/api/auth/register", async (c) => {
 		const passwordHash = await hashPassword(password);
 
 		// Insert user
-		const result = await c.env.bookclub_db_binding
+		const result = await c.env.bookclub_db
 			.prepare(
 				"INSERT INTO users (username, password_hash, role) VALUES (?, ?, 'member')"
 			)
@@ -207,7 +207,7 @@ app.post("/api/auth/login", async (c) => {
 		}
 
 		// Query user by username
-		const user = await c.env.bookclub_db_binding
+		const user = await c.env.bookclub_db
 			.prepare("SELECT id, username, role, password_hash FROM users WHERE username = ?")
 			.bind(username)
 			.first();
@@ -245,7 +245,7 @@ app.post("/api/auth/logout", async (c) => {
 
 		if (sessionToken) {
 			// Delete session from database
-			await c.env.bookclub_db_binding
+			await c.env.bookclub_db
 				.prepare("DELETE FROM sessions WHERE session_token = ?")
 				.bind(sessionToken)
 				.run();
@@ -269,7 +269,7 @@ app.get("/api/auth/me", async (c) => {
 			return c.json({ user: null });
 		}
 
-		const user = await getUserFromSession(c.env.bookclub_db_binding, sessionToken);
+		const user = await getUserFromSession(c.env.bookclub_db, sessionToken);
 
 		if (!user) {
 			// Invalid or expired session
@@ -287,7 +287,7 @@ app.get("/api/auth/me", async (c) => {
 // Users API Routes
 app.get("/api/users", async (c) => {
 	try {
-		const usersResult = await c.env.bookclub_db_binding
+		const usersResult = await c.env.bookclub_db
 			.prepare("SELECT id, username FROM users ORDER BY username ASC")
 			.all();
 
@@ -310,7 +310,7 @@ app.get("/api/books/check-work", async (c) => {
 			return c.json({ exists: false });
 		}
 
-		const result = await c.env.bookclub_db_binding
+		const result = await c.env.bookclub_db
 			.prepare("SELECT id FROM books WHERE work_key = ? LIMIT 1")
 			.bind(workKey)
 			.first();
@@ -326,13 +326,13 @@ app.get("/api/books/check-work", async (c) => {
 app.get("/api/books", async (c) => {
 	try {
 		// Get all books
-		const booksResult = await c.env.bookclub_db_binding
+		const booksResult = await c.env.bookclub_db
 			.prepare("SELECT id, title, author, description, cover_url, status, read_on, suggested_by FROM books ORDER BY read_on asc")
 			.all();
 		const books = booksResult.results || [];
 
 		// Get average ratings for each book
-		const ratingsResult = await c.env.bookclub_db_binding
+		const ratingsResult = await c.env.bookclub_db
 			.prepare("SELECT book_id, AVG(rating) as avg_rating FROM ratings GROUP BY book_id")
 			.all();
 		const ratings = ratingsResult.results || [];
@@ -344,7 +344,7 @@ app.get("/api/books", async (c) => {
 		});
 
 		// Get suggester names
-		const usersResult = await c.env.bookclub_db_binding
+		const usersResult = await c.env.bookclub_db
 			.prepare("SELECT id, username FROM users")
 			.all();
 		const users = usersResult.results || [];
@@ -374,7 +374,7 @@ app.get("/api/ratings/:userId/:bookId", async (c) => {
 		const userId = c.req.param("userId");
 		const bookId = c.req.param("bookId");
 
-		const rating = await c.env.bookclub_db_binding
+		const rating = await c.env.bookclub_db
 			.prepare("SELECT rating FROM ratings WHERE user_id = ? AND book_id = ?")
 			.bind(userId, bookId)
 			.first();
@@ -405,7 +405,7 @@ app.post("/api/ratings", async (c) => {
 		}
 
 		// Insert or update rating
-		await c.env.bookclub_db_binding
+		await c.env.bookclub_db
 			.prepare("INSERT INTO ratings (user_id, book_id, rating) VALUES (?, ?, ?) ON CONFLICT(user_id, book_id) DO UPDATE SET rating = ?, updated_at = CURRENT_TIMESTAMP")
 			.bind(userId, bookId, rating, rating)
 			.run();
@@ -423,7 +423,7 @@ app.get("/api/availability/:bookId", async (c) => {
 		const bookId = c.req.param("bookId");
 
 		// Get all meeting dates for this book with vote counts
-		const { results } = await c.env.bookclub_db_binding
+		const { results } = await c.env.bookclub_db
 			.prepare(`
 				SELECT 
 					md.id,
@@ -451,7 +451,7 @@ app.get("/api/availability/:bookId/user/:userId", async (c) => {
 		const userId = c.req.param("userId");
 
 		// Get user's votes for this book
-		const { results } = await c.env.bookclub_db_binding
+		const { results } = await c.env.bookclub_db
 			.prepare(`
 				SELECT md.proposed_date
 				FROM meeting_votes mv
@@ -483,7 +483,7 @@ app.post("/api/availability", async (c) => {
 		}
 
 		// First, delete existing votes for this user and book
-		await c.env.bookclub_db_binding
+		await c.env.bookclub_db
 			.prepare(`
 				DELETE FROM meeting_votes 
 				WHERE user_id = ? AND meeting_date_id IN (
@@ -496,13 +496,13 @@ app.post("/api/availability", async (c) => {
 		// Then insert new votes
 		for (const date of dates) {
 			// Get or create meeting date
-			let meetingDate = await c.env.bookclub_db_binding
+			let meetingDate = await c.env.bookclub_db
 				.prepare("SELECT id FROM meeting_dates WHERE book_id = ? AND proposed_date = ?")
 				.bind(bookId, date)
 				.first();
 
 			if (!meetingDate) {
-				const result = await c.env.bookclub_db_binding
+				const result = await c.env.bookclub_db
 					.prepare("INSERT INTO meeting_dates (book_id, proposed_date, status) VALUES (?, ?, 'proposed')")
 					.bind(bookId, date)
 					.run();
@@ -510,7 +510,7 @@ app.post("/api/availability", async (c) => {
 			}
 
 			// Insert vote
-			await c.env.bookclub_db_binding
+			await c.env.bookclub_db
 				.prepare("INSERT INTO meeting_votes (meeting_date_id, user_id, vote) VALUES (?, ?, 'yes')")
 				.bind(meetingDate.id, userId)
 				.run();
@@ -532,7 +532,7 @@ app.post("/api/book-suggestions", async (c) => {
 		}
 
 		// Verify session
-		const session = await c.env.bookclub_db_binding
+		const session = await c.env.bookclub_db
 			.prepare("SELECT user_id FROM sessions WHERE session_token = ? AND expires_at > datetime('now')")
 			.bind(sessionToken)
 			.first<{ user_id: number }>();
@@ -565,7 +565,7 @@ app.post("/api/book-suggestions", async (c) => {
 		}
 
 		// Auto-approve: Insert book suggestion as approved
-		const suggestionResult = await c.env.bookclub_db_binding
+		const suggestionResult = await c.env.bookclub_db
 			.prepare(
 				`INSERT INTO book_suggestions 
 				(user_id, title, author, cover_url, work_key, year, suggested_month, status) 
@@ -575,7 +575,7 @@ app.post("/api/book-suggestions", async (c) => {
 			.run();
 
 		// Auto-approve: Also create the book entry immediately
-		const bookResult = await c.env.bookclub_db_binding
+		const bookResult = await c.env.bookclub_db
 			.prepare(
 				`INSERT INTO books 
 				(title, author, description, cover_url, work_key, status, read_on, suggested_by) 

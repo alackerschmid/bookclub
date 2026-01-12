@@ -1,7 +1,8 @@
-import { useLoaderData, useRevalidator } from "react-router";
+import { useLoaderData, useRevalidator, useNavigate } from "react-router";
 import { useState } from "react";
 import { BookCard } from "../components/BookCard";
 import { SuggestBookModal } from "../components/SuggestBookModal";
+import { useAuth } from "../lib/auth";
 import type { Book } from "../lib/types";
 
 interface LoaderData {
@@ -23,11 +24,21 @@ export async function clientLoader() {
 export default function BookClub() {
 	const { readBooks, futureBooks } = useLoaderData<LoaderData>();
 	const revalidator = useRevalidator();
+	const navigate = useNavigate();
+	const { user } = useAuth();
 	const [isModalOpen, setIsModalOpen] = useState(false);
 
 	const handleBookSuggested = () => {
 		// Revalidate to refresh the book list
 		revalidator.revalidate();
+	};
+
+	const handleSuggestClick = () => {
+		if (!user) {
+			navigate("/login");
+		} else {
+			setIsModalOpen(true);
+		}
 	};
 
 	return (
@@ -42,7 +53,7 @@ export default function BookClub() {
 						What we read in our spare time.
 					</p>
 					<button
-						onClick={() => setIsModalOpen(true)}
+						onClick={handleSuggestClick}
 						className="px-6 py-2 bg-bookclub-blue hover:bg-[#006090] text-white font-medium text-sm tracking-widest transition-colors lowercase"
 					>
 						Suggest Book
