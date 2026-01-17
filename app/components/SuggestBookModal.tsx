@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useDebounce } from "../lib/useDebounce";
+import { useAuth } from "../lib/auth";
 
 interface User {
 	id: number;
@@ -40,6 +41,8 @@ interface OpenLibraryWorkData {
 }
 
 export function SuggestBookModal({ isOpen, onClose, onSuccess }: SuggestBookModalProps) {
+	const { user } = useAuth();
+	const isAdmin = user?.role === 'admin';
 	const [query, setQuery] = useState("");
 	const debouncedQuery = useDebounce(query, 300);
 	const [results, setResults] = useState<BookResult[]>([]);
@@ -52,7 +55,9 @@ export function SuggestBookModal({ isOpen, onClose, onSuccess }: SuggestBookModa
 	const [selectedUserId, setSelectedUserId] = useState<string>("");
 	const [loadingUsers, setLoadingUsers] = useState(false);
 	const [isDuplicate, setIsDuplicate] = useState(false);
+	const [duplicateType, setDuplicateType] = useState<'scheduled' | 'suggested' | null>(null);
 	const [duplicateMessage, setDuplicateMessage] = useState<string>("");
+	const [suggestedBy, setSuggestedBy] = useState<string | null>(null);
 	const abortControllerRef = useRef<AbortController | null>(null);
 
 	const months = [
@@ -174,10 +179,16 @@ export function SuggestBookModal({ isOpen, onClose, onSuccess }: SuggestBookModa
 			try {
 				const checkResponse = await fetch(`/api/books/check-work?workKey=${encodeURIComponent(enrichedBook.workKey)}`);
 				if (checkResponse.ok) {
-					const data = await checkResponse.json() as { exists: boolean };
+					const data = await checkResponse.json() as { exists: boolean; type: 'scheduled' | 'suggested' | null; suggestedBy: string | null };
 					setIsDuplicate(data.exists);
+					setDuplicateType(data.type);
+					setSuggestedBy(data.suggestedBy);
 					if (data.exists) {
-						setDuplicateMessage("This book has already been read / suggested!");
+						if (data.type === 'scheduled') {
+							setDuplicateMessage("This book has already been read or scheduled!");
+						} else if (data.type === 'suggested') {
+							setDuplicateMessage(`This book has already been suggested${data.suggestedBy ? ` by ${data.suggestedBy}` : ''}!`);
+						}
 					} else {
 						setDuplicateMessage("");
 					}
@@ -185,6 +196,8 @@ export function SuggestBookModal({ isOpen, onClose, onSuccess }: SuggestBookModa
 			} catch (error) {
 				console.error('Failed to check work key:', error);
 				setIsDuplicate(false);
+				setDuplicateType(null);
+				setSuggestedBy(null);
 				setDuplicateMessage("");
 			}
 		}
@@ -196,25 +209,23 @@ export function SuggestBookModal({ isOpen, onClose, onSuccess }: SuggestBookModa
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
-		if (!selectedBook || !selectedMonth || !selectedYear || !selectedUserId) return;
-
-		const monthYear = `${selectedYear}-${String(months.indexOf(selectedMonth) + 1).padStart(2, '0')}`;
+		if (!selectedBook) return;
 
 		setIsSubmitting(true);
 		try {
+			const payload: any = {
+				title: selectedBook.title,
+				author: selectedBook.author,
+				coverUrl: selectedBook.coverUrl,
+				workKey: selectedBook.workKey,
+				year: selectedBook.year,
+				description: selectedBook.description,
+			};
+
 			const response = await fetch("/api/book-suggestions", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({
-					title: selectedBook.title,
-					author: selectedBook.author,
-					coverUrl: selectedBook.coverUrl,
-					workKey: selectedBook.workKey,
-					year: selectedBook.year,
-					description: selectedBook.description,
-					suggestedMonth: monthYear,
-					suggestedByUserId: parseInt(selectedUserId),
-				}),
+				body: JSON.stringify(payload),
 			});
 
 			if (!response.ok) {
@@ -223,7 +234,7 @@ export function SuggestBookModal({ isOpen, onClose, onSuccess }: SuggestBookModa
 			}
 
 			// Show success notification
-			alert(`"${selectedBook.title}" has been added to the book club timeline!`);
+			alert(`"${selectedBook.title}" has been submitted for approval!`);
 
 			// Reset and close on success
 			setQuery("");
@@ -254,6 +265,8 @@ export function SuggestBookModal({ isOpen, onClose, onSuccess }: SuggestBookModa
 		setSelectedMonth("");
 		setSelectedYear("");
 		setIsDuplicate(false);
+		setDuplicateType(null);
+		setSuggestedBy(null);
 		setDuplicateMessage("");
 	};
 
@@ -364,11 +377,15 @@ export function SuggestBookModal({ isOpen, onClose, onSuccess }: SuggestBookModa
 										{selectedBook.year && (
 											<p className="text-neutral-500 text-sm">First published: {selectedBook.year}</p>
 										)}
-                                        							{isDuplicate && (
-								<div className="p-1.5 bg-bookclub-red text-black text-sm rounded lowercase">
-									{duplicateMessage}
-								</div>
-							)}
+										{isDuplicate && (
+											<div className={`p-1.5 text-black text-sm rounded lowercase ${
+												duplicateType === 'scheduled' 
+													? 'bg-bookclub-red' 
+													: 'bg-bookclub-yellow'
+											}`}>
+												{duplicateMessage}
+											</div>
+										)}
 									</div>
 								</div>
 								{selectedBook.description && (
@@ -383,63 +400,11 @@ export function SuggestBookModal({ isOpen, onClose, onSuccess }: SuggestBookModa
 							</div>
 
 
-
-{/* Month/Year/User Selection */}
-						<div className="space-y-2">
-							<label className="block text-xs font-medium tracking-widest text-white lowercase">
-								Schedule & Suggester
-							</label>
-							<div className="flex gap-4">
-								<select
-									value={selectedMonth}
-									onChange={(e) => setSelectedMonth(e.target.value)}
-									className="flex-1 px-4 py-3 bg-black border-2 border-neutral-700 text-white focus:outline-none focus:border-bookclub-blue transition-colors lowercase"
-									required
-								>
-									<option value="">Select Month</option>
-									{months.map((month) => (
-										<option key={month} value={month}>
-											{month}
-										</option>
-									))}
-								</select>
-								<select
-									value={selectedYear}
-									onChange={(e) => setSelectedYear(e.target.value)}
-									className="w-32 px-4 py-3 bg-black border-2 border-neutral-700 text-white focus:outline-none focus:border-bookclub-blue transition-colors lowercase"
-									required
-								>
-									<option value="">Year</option>
-									{years.map((year) => (
-										<option key={year} value={year}>
-											{year}
-										</option>
-									))}
-								</select>
-								<select
-									value={selectedUserId}
-									onChange={(e) => setSelectedUserId(e.target.value)}
-									className="flex-1 px-4 py-3 bg-black border-2 border-neutral-700 text-white focus:outline-none focus:border-bookclub-blue transition-colors lowercase"
-									required
-									disabled={loadingUsers}
-								>
-									<option value="">
-										{loadingUsers ? "Loading users..." : "Select User"}
-									</option>
-									{users.map((user) => (
-										<option key={user.id} value={user.id.toString()}>
-											{user.name}
-										</option>
-									))}
-								</select>
-							</div>
-						</div>
-
 						{/* Actions */}
 						<div className="flex gap-4">
 							<button
 								type="submit"
-								disabled={isSubmitting || !selectedMonth || !selectedYear || isDuplicate}
+								disabled={isSubmitting || isDuplicate}
 								className="flex-1 py-4 bg-bookclub-blue hover:bg-[#006090] disabled:bg-neutral-700 disabled:cursor-not-allowed text-white font-medium text-sm tracking-widest lowercase transition-colors"
 							>
 									{isSubmitting ? "Submitting..." : "Submit Suggestion"}

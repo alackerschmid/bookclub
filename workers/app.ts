@@ -307,18 +307,43 @@ app.get("/api/books/check-work", async (c) => {
 		const workKey = c.req.query("workKey");
 		
 		if (!workKey) {
-			return c.json({ exists: false });
+			return c.json({ exists: false, type: null, suggestedBy: null });
 		}
 
-		const result = await c.env.bookclub_db
-			.prepare("SELECT id FROM books WHERE work_key = ? LIMIT 1")
+		// Check if book exists in books table (already read/scheduled)
+		const bookResult = await c.env.bookclub_db
+			.prepare("SELECT id, status FROM books WHERE work_key = ? LIMIT 1")
 			.bind(workKey)
 			.first();
 
-		return c.json({ exists: !!result });
+		if (bookResult) {
+			return c.json({ exists: true, type: 'scheduled', suggestedBy: null });
+		}
+
+		// Check if book exists in book_suggestions table (pending)
+		const suggestionResult = await c.env.bookclub_db
+			.prepare(`
+				SELECT bs.id, bs.status, u.username 
+				FROM book_suggestions bs
+				JOIN users u ON bs.user_id = u.id
+				WHERE bs.work_key = ? AND bs.status = 'pending'
+				LIMIT 1
+			`)
+			.bind(workKey)
+			.first<{ id: number; status: string; username: string }>();
+
+		if (suggestionResult) {
+			return c.json({ 
+				exists: true, 
+				type: 'suggested', 
+				suggestedBy: suggestionResult.username 
+			});
+		}
+
+		return c.json({ exists: false, type: null, suggestedBy: null });
 	} catch (error) {
 		console.error("Check work key error:", error);
-		return c.json({ exists: false });
+		return c.json({ exists: false, type: null, suggestedBy: null });
 	}
 });
 
@@ -330,6 +355,12 @@ app.get("/api/books", async (c) => {
 			.prepare("SELECT id, title, author, description, cover_url, status, read_on, suggested_by FROM books ORDER BY read_on asc")
 			.all();
 		const books = booksResult.results || [];
+
+		// Get pending book suggestions
+		const suggestionsResult = await c.env.bookclub_db
+			.prepare("SELECT id, title, author, description, cover_url, work_key, year, user_id, suggested_month, created_at FROM book_suggestions WHERE status = 'pending' ORDER BY created_at DESC")
+			.all();
+		const suggestions = suggestionsResult.results || [];
 
 		// Get average ratings for each book
 		const ratingsResult = await c.env.bookclub_db
@@ -361,7 +392,13 @@ app.get("/api/books", async (c) => {
 			suggestedBy: book.suggested_by ? userMap.get(book.suggested_by) : undefined
 		}));
 
-		return c.json({ books: booksWithRatings });
+		// Add suggester names to pending suggestions
+		const suggestionsWithUsers = (suggestions as Array<any>).map((suggestion) => ({
+			...suggestion,
+			suggestedBy: userMap.get(suggestion.user_id) || undefined
+		}));
+
+		return c.json({ books: booksWithRatings, pendingSuggestions: suggestionsWithUsers });
 	} catch (error) {
 		console.error("Fetch books error:", error);
 		return c.json({ error: "Failed to fetch books" }, 500);
@@ -572,7 +609,284 @@ app.post("/api/availability", async (c) => {
 	}
 });
 
+// Update book schedule endpoint (admin only)
+// Delete book endpoint (admin only)
+app.delete("/api/books/:bookId", async (c) => {
+	try {
+		const sessionToken = getCookie(c, "session_token");
+		if (!sessionToken) {
+			return c.json({ error: "Unauthorized" }, 401);
+		}
+
+		// Verify session and check admin role
+		const session = await c.env.bookclub_db
+			.prepare(`
+				SELECT u.id, u.role 
+				FROM sessions s
+				JOIN users u ON s.user_id = u.id
+				WHERE s.session_token = ? AND s.expires_at > datetime('now')
+			`)
+			.bind(sessionToken)
+			.first<{ id: number; role: string }>();
+
+		if (!session) {
+			return c.json({ error: "Invalid or expired session" }, 401);
+		}
+
+		if (session.role !== 'admin') {
+			return c.json({ error: "Admin access required" }, 403);
+		}
+
+		const bookId = c.req.param("bookId");
+
+		// Delete the book
+		await c.env.bookclub_db
+			.prepare("DELETE FROM books WHERE id = ?")
+			.bind(bookId)
+			.run();
+
+		return c.json({ success: true });
+	} catch (error) {
+		console.error("Delete book error:", error);
+		return c.json({ error: "Failed to delete book" }, 500);
+	}
+});
+
+// Mark book as read (admin only)
+app.put("/api/books/:bookId/mark-read", async (c) => {
+	try {
+		const sessionToken = getCookie(c, "session_token");
+		if (!sessionToken) {
+			return c.json({ error: "Unauthorized" }, 401);
+		}
+
+		// Verify session and check admin role
+		const session = await c.env.bookclub_db
+			.prepare(`
+				SELECT u.id, u.role 
+				FROM sessions s
+				JOIN users u ON s.user_id = u.id
+				WHERE s.session_token = ? AND s.expires_at > datetime('now')
+			`)
+			.bind(sessionToken)
+			.first<{ id: number; role: string }>();
+
+		if (!session) {
+			return c.json({ error: "Invalid or expired session" }, 401);
+		}
+
+		if (session.role !== 'admin') {
+			return c.json({ error: "Admin access required" }, 403);
+		}
+
+		const bookId = c.req.param("bookId");
+
+		// Update book status to 'read'
+		await c.env.bookclub_db
+			.prepare("UPDATE books SET status = 'read' WHERE id = ?")
+			.bind(bookId)
+			.run();
+
+		return c.json({ success: true });
+	} catch (error) {
+		console.error("Mark book as read error:", error);
+		return c.json({ error: "Failed to mark book as read" }, 500);
+	}
+});
+
+app.put("/api/books/:bookId/schedule", async (c) => {
+	try {
+		const sessionToken = getCookie(c, "session_token");
+		if (!sessionToken) {
+			return c.json({ error: "Unauthorized" }, 401);
+		}
+
+		// Verify session and check admin role
+		const session = await c.env.bookclub_db
+			.prepare(`
+				SELECT u.id, u.role 
+				FROM sessions s
+				JOIN users u ON s.user_id = u.id
+				WHERE s.session_token = ? AND s.expires_at > datetime('now')
+			`)
+			.bind(sessionToken)
+			.first<{ id: number; role: string }>();
+
+		if (!session) {
+			return c.json({ error: "Invalid or expired session" }, 401);
+		}
+
+		if (session.role !== 'admin') {
+			return c.json({ error: "Admin access required" }, 403);
+		}
+
+		const bookId = c.req.param("bookId");
+		const body = await c.req.json() as { scheduledDate?: string };
+		const { scheduledDate } = body;
+
+		if (!scheduledDate) {
+			return c.json({ error: "Scheduled date is required" }, 400);
+		}
+
+		// Validate date format (YYYY-MM or YYYY-MM-DD)
+		if (!/^\d{4}-\d{2}(-\d{2})?$/.test(scheduledDate)) {
+			return c.json({ error: "Invalid date format. Use YYYY-MM or YYYY-MM-DD" }, 400);
+		}
+
+		// Update the book's read_on field
+		await c.env.bookclub_db
+			.prepare("UPDATE books SET read_on = ? WHERE id = ?")
+			.bind(scheduledDate, bookId)
+			.run();
+
+		return c.json({ success: true });
+	} catch (error) {
+		console.error("Update book schedule error:", error);
+		return c.json({ error: "Failed to update book schedule" }, 500);
+	}
+});
+
 // Book suggestion endpoint
+// Delete book suggestion (admin only)
+app.delete("/api/book-suggestions/:suggestionId", async (c) => {
+	try {
+		const sessionToken = getCookie(c, "session_token");
+		if (!sessionToken) {
+			return c.json({ error: "Unauthorized" }, 401);
+		}
+
+		// Verify session and check admin role
+		const session = await c.env.bookclub_db
+			.prepare(`
+				SELECT u.id, u.role 
+				FROM sessions s
+				JOIN users u ON s.user_id = u.id
+				WHERE s.session_token = ? AND s.expires_at > datetime('now')
+			`)
+			.bind(sessionToken)
+			.first<{ id: number; role: string }>();
+
+		if (!session) {
+			return c.json({ error: "Invalid or expired session" }, 401);
+		}
+
+		if (session.role !== 'admin') {
+			return c.json({ error: "Admin access required" }, 403);
+		}
+
+		const suggestionId = c.req.param("suggestionId");
+
+		// Delete the suggestion
+		await c.env.bookclub_db
+			.prepare("DELETE FROM book_suggestions WHERE id = ?")
+			.bind(suggestionId)
+			.run();
+
+		return c.json({ success: true });
+	} catch (error) {
+		console.error("Delete book suggestion error:", error);
+		return c.json({ error: "Failed to delete book suggestion" }, 500);
+	}
+});
+
+// Approve book suggestion and schedule it (admin only)
+app.post("/api/book-suggestions/:suggestionId/approve", async (c) => {
+	try {
+		const sessionToken = getCookie(c, "session_token");
+		if (!sessionToken) {
+			return c.json({ error: "Unauthorized" }, 401);
+		}
+
+		// Verify session and check admin role
+		const session = await c.env.bookclub_db
+			.prepare(`
+				SELECT u.id, u.role 
+				FROM sessions s
+				JOIN users u ON s.user_id = u.id
+				WHERE s.session_token = ? AND s.expires_at > datetime('now')
+			`)
+			.bind(sessionToken)
+			.first<{ id: number; role: string }>();
+
+		if (!session) {
+			return c.json({ error: "Invalid or expired session" }, 401);
+		}
+
+		if (session.role !== 'admin') {
+			return c.json({ error: "Admin access required" }, 403);
+		}
+
+		const suggestionId = c.req.param("suggestionId");
+		const body = await c.req.json() as { scheduledDate?: string };
+		const { scheduledDate } = body;
+
+		if (!scheduledDate) {
+			return c.json({ error: "Scheduled date is required" }, 400);
+		}
+
+		// Validate date format (YYYY-MM or YYYY-MM-DD)
+		if (!/^\d{4}-\d{2}(-\d{2})?$/.test(scheduledDate)) {
+			return c.json({ error: "Invalid date format. Use YYYY-MM or YYYY-MM-DD" }, 400);
+		}
+
+		// Get suggestion details
+		const suggestion = await c.env.bookclub_db
+			.prepare("SELECT * FROM book_suggestions WHERE id = ?")
+			.bind(suggestionId)
+			.first<{
+				id: number;
+				user_id: number;
+				title: string;
+				author?: string;
+				description?: string;
+				cover_url?: string;
+				work_key?: string;
+				year?: number;
+				status: string;
+			}>();
+
+		if (!suggestion) {
+			return c.json({ error: "Suggestion not found" }, 404);
+		}
+
+		if (suggestion.status !== 'pending') {
+			return c.json({ error: "Suggestion is not pending" }, 400);
+		}
+
+		// Add book to books table
+		const bookResult = await c.env.bookclub_db
+			.prepare(
+				`INSERT INTO books 
+				(title, author, cover_url, work_key, description, status, read_on, suggested_by) 
+				VALUES (?, ?, ?, ?, ?, 'unread', ?, ?)`
+			)
+			.bind(
+				suggestion.title,
+				suggestion.author || null,
+				suggestion.cover_url || null,
+				suggestion.work_key || null,
+				suggestion.description || null,
+				scheduledDate,
+				suggestion.user_id
+			)
+			.run();
+
+		// Update suggestion status to approved
+		await c.env.bookclub_db
+			.prepare("UPDATE book_suggestions SET status = 'approved' WHERE id = ?")
+			.bind(suggestionId)
+			.run();
+
+		return c.json({ 
+			success: true, 
+			bookId: bookResult.meta.last_row_id 
+		});
+	} catch (error) {
+		console.error("Approve book suggestion error:", error);
+		return c.json({ error: "Failed to approve book suggestion" }, 500);
+	}
+});
+
 app.post("/api/book-suggestions", async (c) => {
 	try {
 		const sessionToken = getCookie(c, "session_token");
@@ -603,48 +917,42 @@ app.post("/api/book-suggestions", async (c) => {
 
 		const { title, author, coverUrl, workKey, year, description, suggestedMonth, suggestedByUserId } = body;
 
-		// Validation
-		if (!title || !suggestedMonth || !suggestedByUserId) {
-			return c.json({ error: "Title, suggested month, and suggested user are required" }, 400);
+		// Validation - title is required, scheduling is optional
+		if (!title) {
+			return c.json({ error: "Title is required" }, 400);
 		}
 
-		// Validate month format (YYYY-MM)
-		if (!/^\d{4}-\d{2}$/.test(suggestedMonth)) {
-			return c.json({ error: "Invalid month format. Use YYYY-MM" }, 400);
+		// If scheduling info provided, validate it
+		if (suggestedMonth) {
+			// Validate month format (YYYY-MM)
+			if (!/^\d{4}-\d{2}$/.test(suggestedMonth)) {
+				return c.json({ error: "Invalid month format. Use YYYY-MM" }, 400);
+			}
+			if (!suggestedByUserId) {
+				return c.json({ error: "Suggested user is required when month is provided" }, 400);
+			}
 		}
 
-		// Auto-approve: Insert book suggestion as approved
+		// Use current user as suggester if not provided (for non-admins)
+		const finalSuggestedBy = suggestedByUserId || session.user_id;
+		const finalSuggestedMonth = suggestedMonth || 'TBD';
+
+		// Insert book suggestion as pending (requires approval)
 		const suggestionResult = await c.env.bookclub_db
 			.prepare(
 				`INSERT INTO book_suggestions 
-				(user_id, title, author, cover_url, work_key, year, suggested_month, status) 
-				VALUES (?, ?, ?, ?, ?, ?, ?, 'approved')`
+				(user_id, title, author, cover_url, work_key, description, year, suggested_month, status) 
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')`
 			)
-			.bind(suggestedByUserId, title, author || null, coverUrl || null, workKey || null, year || null, suggestedMonth)
+			.bind(finalSuggestedBy, title, author || null, coverUrl || null, workKey || null, description || null, year || null, finalSuggestedMonth)
 			.run();
 
-		// Auto-approve: Also create the book entry immediately
-		const bookResult = await c.env.bookclub_db
-			.prepare(
-				`INSERT INTO books 
-				(title, author, description, cover_url, work_key, status, read_on, suggested_by) 
-				VALUES (?, ?, ?, ?, ?, 'unread', ?, ?)`
-			)
-			.bind(
-				title, 
-				author || null, 
-				description || null,
-				coverUrl || null, 
-				workKey || null,
-				suggestedMonth, 
-				suggestedByUserId
-			)
-			.run();
+		// Note: Book will be added to books table only after admin approval
+		// Approval UI and logic will be implemented later
 
 		return c.json({ 
 			success: true, 
-			suggestionId: suggestionResult.meta.last_row_id,
-			bookId: bookResult.meta.last_row_id
+			suggestionId: suggestionResult.meta.last_row_id
 		});
 	} catch (error) {
 		console.error("Submit book suggestion error:", error);

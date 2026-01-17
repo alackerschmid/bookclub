@@ -55,7 +55,7 @@ CREATE TABLE books (
   cover_url TEXT,
   work_key TEXT,  -- Open Library work key for duplicate detection
   status TEXT NOT NULL CHECK(status IN ('read', 'unread', 'tbd')) DEFAULT 'tbd',
-  read_on TEXT,  -- Month and year when the book club read/will read it (format: YYYY-MM, e.g., '2026-02')
+  read_on TEXT,  -- Date when the book club read/will read it (format: YYYY-MM-DD or YYYY-MM, e.g., '2026-02-15' or '2026-02')
   suggested_by INTEGER,  -- User ID who suggested it
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -131,8 +131,8 @@ CREATE TABLE book_suggestions (
   author TEXT,
   cover_url TEXT,
   work_key TEXT,
-  year INTEGER,  -- First publication year from Open Library
-  suggested_month TEXT NOT NULL,  -- Format: YYYY-MM (e.g., '2026-02')
+  description TEXT,
+  year INTEGER,
   status TEXT NOT NULL CHECK(status IN ('pending', 'approved', 'rejected')) DEFAULT 'pending',
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,

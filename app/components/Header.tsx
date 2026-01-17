@@ -31,7 +31,7 @@ export function Header() {
 						{user ? (
 							<>
 								<span className="text-sm font-medium text-neutral-900 dark:text-neutral-100 leading-none">
-									{user.username}
+									{user.username} [{user.role}]
 								</span>
 								<button
 									onClick={() => logout()}
