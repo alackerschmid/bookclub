@@ -4,6 +4,7 @@ import { BookCard } from "../components/BookCard";
 import { SuggestBookModal } from "../components/SuggestBookModal";
 import { TimelineCard } from "../components/TimelineCard";
 import { ApproveBookModal } from "../components/ApproveBookModal";
+import { BookQuote } from "../components/BookQuote";
 import { useAuth } from "../lib/auth";
 import type { Book } from "../lib/types";
 import type { Route } from "./+types/bookclub";
@@ -138,9 +139,7 @@ export default function BookClub() {
 					<h1 className="font-bold text-5xl tracking-tight text-neutral-900 dark:text-neutral-100 lowercase">
 						Book Club
 					</h1>
-					<p className="mt-4 text-neutral-600 dark:text-neutral-400 font-light text-lg tracking-wide lowercase">
-						What we do in our spare time.
-					</p>
+					<BookQuote />
 					<button
 						onClick={handleSuggestClick}
 						className="px-6 py-2 bg-bookclub-blue hover:bg-[#006090] text-white font-medium text-sm tracking-widest transition-colors lowercase"

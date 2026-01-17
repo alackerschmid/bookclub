@@ -6,7 +6,19 @@ export function Footer() {
 					<p className="text-neutral-500 dark:text-neutral-500 text-sm font-light lowercase">
 						© {new Date().getFullYear()} Alex Lackerschmid. All rights reserved.
 					</p>
-					<div className="flex gap-6">
+					<div className="flex flex-wrap justify-center gap-4 md:gap-6">
+						{/* <a 
+							href="/impressum"
+							className="text-neutral-500 dark:text-neutral-500 hover:text-bookclub-blue dark:hover:text-bookclub-blue transition-colors text-sm lowercase"
+						>
+							Impressum
+						</a> */}
+						<a 
+							href="/privacy"
+							className="text-neutral-500 dark:text-neutral-500 hover:text-bookclub-blue dark:hover:text-bookclub-blue transition-colors text-sm lowercase"
+						>
+							Privacy Policy
+						</a>
 						<a 
 							href="https://github.com/alackerschmid" 
 							target="_blank" 
